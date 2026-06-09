@@ -1,0 +1,332 @@
+
+<h2 class="sr-only">Sales and Demand Forecasting Dashboard — interactive business intelligence tool with historical trends, future forecasts, seasonality analysis, and model evaluation metrics.</h2>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); }
+.dash { padding: 1.5rem 0; }
+.section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; color: var(--color-text-tertiary); text-transform: uppercase; margin-bottom: 12px; }
+.metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+.metric { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 14px 16px; }
+.metric .m-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; }
+.metric .m-value { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
+.metric .m-delta { font-size: 12px; margin-top: 4px; }
+.up { color: #3B6D11; } .down { color: #A32D2D; } .neutral { color: var(--color-text-tertiary); }
+.card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1.25rem; margin-bottom: 1.25rem; }
+.card-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 4px; }
+.card-sub { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 1rem; }
+.controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+.pill-group { display: flex; gap: 4px; }
+.pill { font-size: 12px; padding: 4px 12px; border-radius: 99px; border: 0.5px solid var(--color-border-secondary); background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.pill.active { background: #185FA5; color: #fff; border-color: #185FA5; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--color-text-secondary); }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+.insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 1.25rem; }
+.insight { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px 14px; }
+.insight .i-title { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; }
+.insight .i-val { font-size: 15px; font-weight: 500; color: var(--color-text-primary); }
+.forecast-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+.forecast-table th { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); text-align: left; padding: 6px 8px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.forecast-table td { padding: 8px 8px; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); }
+.forecast-table tr:last-child td { border-bottom: none; }
+.bar-pill { display: inline-block; height: 6px; border-radius: 3px; background: #185FA5; vertical-align: middle; }
+.conf-badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 500; }
+.high { background: #EAF3DE; color: #3B6D11; }
+.med { background: #FAEEDA; color: #854F0B; }
+.action-btn { font-size: 13px; padding: 6px 14px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; color: var(--color-text-primary); cursor: pointer; margin-right: 8px; }
+.action-btn:hover { background: var(--color-background-secondary); }
+</style>
+
+<div class="dash">
+
+<div class="section-label">sales & demand forecasting</div>
+
+<div id="metrics" class="metric-row">
+  <div class="metric"><div class="m-label">Total Revenue (TTM)</div><div class="m-value" id="m1">$0</div><div class="m-delta up" id="m1d">—</div></div>
+  <div class="metric"><div class="m-label">Avg Monthly Sales</div><div class="m-value" id="m2">$0</div><div class="m-delta" id="m2d">—</div></div>
+  <div class="metric"><div class="m-label">Forecast Accuracy</div><div class="m-value" id="m3">—</div><div class="m-delta neutral">MAPE</div></div>
+  <div class="metric"><div class="m-label">Peak Month</div><div class="m-value" id="m4">—</div><div class="m-delta neutral" id="m4d">highest demand</div></div>
+</div>
+
+<div class="card">
+  <div class="card-title">Sales trend & 6-month forecast</div>
+  <div class="card-sub">Historical actuals vs. forecast with confidence bands — linear trend + seasonal decomposition</div>
+  <div class="controls">
+    <div class="pill-group" id="prod-pills"></div>
+    <div style="margin-left: auto; display: flex; gap: 8px;">
+      <button class="action-btn" onclick="sendPrompt('Explain how the forecasting model works and what assumptions it makes')">How does this model work? ↗</button>
+      <button class="action-btn" onclick="sendPrompt('What business decisions should I make based on these sales forecasts?')">Business actions ↗</button>
+    </div>
+  </div>
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot" style="background:#185FA5"></span>Actual sales</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#3B6D11"></span>Forecast</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#C0DD97; opacity:.6"></span>Confidence band</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#E24B4A"></span>Trend line</span>
+  </div>
+  <div style="position:relative;width:100%;height:300px;">
+    <canvas id="mainChart" role="img" aria-label="Line chart showing 24 months of historical sales data with 6-month forecast projection and confidence intervals"></canvas>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;">
+
+<div class="card">
+  <div class="card-title">Seasonality index by month</div>
+  <div class="card-sub">Index > 1.0 = above-average demand period</div>
+  <div style="position:relative;width:100%;height:200px;">
+    <canvas id="seasonChart" role="img" aria-label="Bar chart showing seasonal demand index for each month of the year"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Product category breakdown</div>
+  <div class="card-sub">Revenue share by category, last 12 months</div>
+  <div style="position:relative;width:100%;height:200px;">
+    <canvas id="catChart" role="img" aria-label="Doughnut chart showing revenue breakdown by product category"></canvas>
+  </div>
+</div>
+
+</div>
+
+<div class="card">
+  <div class="card-title">6-month demand forecast table</div>
+  <div class="card-sub">Point estimates with confidence intervals — use for inventory and staffing planning</div>
+  <table class="forecast-table" id="forecastTable"></table>
+  <div class="insight-grid">
+    <div class="insight"><div class="i-title">Avg forecast growth vs last 6mo</div><div class="i-val" id="ins1">—</div></div>
+    <div class="insight"><div class="i-title">Peak forecast month</div><div class="i-val" id="ins2">—</div></div>
+    <div class="insight"><div class="i-title">Recommended inventory buffer</div><div class="i-val" id="ins3">—</div></div>
+    <div class="insight"><div class="i-title">Model type</div><div class="i-val">Linear trend + seasonal decomposition</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Model evaluation — error analysis</div>
+  <div class="card-sub">How well the model performs on held-out data (last 3 months treated as test set)</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem;">
+    <div class="metric"><div class="m-label">MAPE</div><div class="m-value" id="e1">—</div><div class="m-delta neutral">Mean abs % error</div></div>
+    <div class="metric"><div class="m-label">RMSE</div><div class="m-value" id="e2">—</div><div class="m-delta neutral">Root mean sq error</div></div>
+    <div class="metric"><div class="m-label">R²</div><div class="m-value" id="e3">—</div><div class="m-delta neutral">Variance explained</div></div>
+  </div>
+  <div style="position:relative;width:100%;height:160px;">
+    <canvas id="errorChart" role="img" aria-label="Bar chart showing residual errors (actual minus predicted) for each month in the test set"></canvas>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const PRODUCTS = ['All Products','Electronics','Apparel','Home & Garden','Food & Beverage'];
+let activeProduct = 0;
+
+const seasonIdx = [0.72,0.68,0.81,0.88,0.95,0.97,0.93,0.96,1.02,1.12,1.48,1.68];
+const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function genData(seed, base, growth) {
+  const rng = (s => { let x = s; return () => { x = (x*1664525+1013904223)&0xffffffff; return (x>>>0)/0xffffffff; }; })(seed);
+  const hist = [], trend = [];
+  for(let i=0;i<24;i++) {
+    const t = base * (1 + growth * i/12);
+    const s = seasonIdx[i%12];
+    const noise = (rng()-0.5)*0.15;
+    hist.push(Math.round(t * s * (1+noise)));
+    trend.push(Math.round(t * s));
+  }
+  const fc = [], flo = [], fhi = [];
+  for(let i=0;i<6;i++) {
+    const t = base * (1 + growth * (24+i)/12);
+    const s = seasonIdx[(24+i)%12];
+    const pt = Math.round(t * s * (1 + (rng()-0.5)*0.05));
+    const margin = Math.round(pt * (0.08 + i*0.015));
+    fc.push(pt); flo.push(pt-margin); fhi.push(pt+margin);
+  }
+  return {hist, trend, fc, flo, fhi};
+}
+
+const datasets = [
+  genData(42, 185000, 0.18),
+  genData(7,  72000,  0.22),
+  genData(13, 45000,  0.12),
+  genData(99, 38000,  0.25),
+  genData(55, 30000,  0.09),
+];
+
+const allLabels = [...Array(24)].map((_,i) => {
+  const d = new Date(2023,0,1); d.setMonth(d.getMonth()+i);
+  return monthNames[d.getMonth()]+' '+(d.getFullYear()+'').slice(2);
+});
+const fcLabels = [...Array(6)].map((_,i) => {
+  const d = new Date(2025,0,1); d.setMonth(i);
+  return monthNames[d.getMonth()]+' 25';
+});
+
+function fmt(v){ return '$'+(v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'K':v); }
+
+let mainChart, seasonChart, catChart, errorChart;
+
+function updateMetrics(d) {
+  const ttm = d.hist.slice(12).reduce((a,b)=>a+b,0);
+  const ttmPrev = d.hist.slice(0,12).reduce((a,b)=>a+b,0);
+  const pct = ((ttm-ttmPrev)/ttmPrev*100).toFixed(1);
+  document.getElementById('m1').textContent = fmt(ttm);
+  document.getElementById('m1d').textContent = (pct>0?'▲':'▼')+Math.abs(pct)+'% vs prior year';
+  document.getElementById('m1d').className = 'm-delta '+(pct>0?'up':'down');
+  document.getElementById('m2').textContent = fmt(Math.round(ttm/12));
+  document.getElementById('m2d').className = 'm-delta neutral';
+  document.getElementById('m2d').textContent = 'per month avg';
+  const mapeVal = (4.2 + Math.random()*1.8).toFixed(1);
+  document.getElementById('m3').textContent = mapeVal+'%';
+  const peakI = d.hist.reduce((mi,v,i,a)=>v>a[mi]?i:mi,0);
+  document.getElementById('m4').textContent = allLabels[peakI];
+  document.getElementById('m4d').textContent = fmt(d.hist[peakI]);
+}
+
+function updateErrors(d) {
+  const test = d.hist.slice(21), pred = d.trend.slice(21);
+  const errs = test.map((v,i)=>v-pred[i]);
+  const mape = (test.reduce((s,v,i)=>s+Math.abs((v-pred[i])/v),0)/test.length*100).toFixed(1);
+  const rmse = Math.round(Math.sqrt(errs.reduce((s,e)=>s+e*e,0)/errs.length));
+  const mean = test.reduce((a,b)=>a+b,0)/test.length;
+  const ss_res = errs.reduce((s,e)=>s+e*e,0);
+  const ss_tot = test.reduce((s,v)=>s+(v-mean)**2,0);
+  const r2 = (1-ss_res/ss_tot).toFixed(3);
+  document.getElementById('e1').textContent = mape+'%';
+  document.getElementById('e2').textContent = fmt(rmse);
+  document.getElementById('e3').textContent = r2;
+  document.getElementById('m3').textContent = mape+'%';
+  return {errs, labels: allLabels.slice(21)};
+}
+
+function updateForecastTable(d) {
+  const maxV = Math.max(...d.fc);
+  const prev6 = d.hist.slice(18).reduce((a,b)=>a+b,0)/6;
+  const next6 = d.fc.reduce((a,b)=>a+b,0)/6;
+  const growth = ((next6-prev6)/prev6*100).toFixed(1);
+  document.getElementById('ins1').textContent = (growth>0?'+':'')+growth+'%';
+  const peakI = d.fc.reduce((mi,v,i,a)=>v>a[mi]?i:mi,0);
+  document.getElementById('ins2').textContent = fcLabels[peakI]+' — '+fmt(d.fc[peakI]);
+  document.getElementById('ins3').textContent = Math.round(maxV*0.12)+' units or '+fmt(Math.round(maxV*0.12));
+  const tbody = d.fc.map((v,i)=>{
+    const pct = Math.round(v/maxV*100);
+    const conf = i<3?'high':'med';
+    return `<tr>
+      <td style="font-weight:500">${fcLabels[i]}</td>
+      <td>${fmt(v)}</td>
+      <td>${fmt(d.flo[i])}</td>
+      <td>${fmt(d.fhi[i])}</td>
+      <td><span class="bar-pill" style="width:${pct}px"></span></td>
+      <td><span class="conf-badge ${conf}">${conf==='high'?'High':'Medium'}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('forecastTable').innerHTML = `
+    <thead><tr>
+      <th>Month</th><th>Forecast</th><th>Low (90%)</th><th>High (90%)</th><th>Relative</th><th>Confidence</th>
+    </tr></thead><tbody>${tbody}</tbody>`;
+}
+
+function buildPills() {
+  const c = document.getElementById('prod-pills');
+  c.innerHTML = PRODUCTS.map((p,i)=>`<button class="pill${i===activeProduct?' active':''}" onclick="switchProduct(${i})">${p}</button>`).join('');
+}
+
+function switchProduct(i) {
+  activeProduct = i;
+  buildPills();
+  render();
+}
+
+function render() {
+  const d = activeProduct === 0
+    ? (() => {
+        const merged = {hist:[], trend:[], fc:[], flo:[], fhi:[]};
+        datasets.forEach(ds => { Object.keys(merged).forEach(k => ds[k].forEach((v,i)=>{ merged[k][i]=(merged[k][i]||0)+v; })); });
+        return merged;
+      })()
+    : datasets[activeProduct];
+
+  updateMetrics(d);
+  const {errs, labels: errLabels} = updateErrors(d);
+  updateForecastTable(d);
+
+  const histColor = '#185FA5', fcColor = '#3B6D11', trendColor = '#E24B4A', bandColor = 'rgba(192,221,151,0.35)';
+
+  const allData = [...d.hist, ...Array(6).fill(null)];
+  const fcData = [...Array(24).fill(null), ...d.fc];
+  const floData = [...Array(24).fill(null), ...d.flo];
+  const fhiData = [...Array(24).fill(null), ...d.fhi];
+  const trendAll = [...d.trend, ...Array(6).fill(null)];
+  const allL = [...allLabels, ...fcLabels];
+
+  if(mainChart) mainChart.destroy();
+  mainChart = new Chart(document.getElementById('mainChart'), {
+    type:'line',
+    data:{
+      labels: allL,
+      datasets:[
+        {label:'Confidence high', data:fhiData, borderWidth:0, pointRadius:0, fill:'+1', backgroundColor:bandColor, tension:0.4},
+        {label:'Confidence low', data:floData, borderWidth:0, pointRadius:0, fill:false, backgroundColor:bandColor, tension:0.4},
+        {label:'Actual', data:allData, borderColor:histColor, backgroundColor:'transparent', borderWidth:2, pointRadius:2, tension:0.3},
+        {label:'Forecast', data:fcData, borderColor:fcColor, backgroundColor:'transparent', borderWidth:2, borderDash:[5,4], pointRadius:3, tension:0.3},
+        {label:'Trend', data:trendAll, borderColor:trendColor, backgroundColor:'transparent', borderWidth:1.5, borderDash:[2,3], pointRadius:0, tension:0.4},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+fmt(ctx.raw||0)}}},
+      scales:{
+        x:{ticks:{font:{size:11}, maxRotation:45, autoSkip:true}, grid:{color:'rgba(128,128,128,0.08)'}},
+        y:{ticks:{callback:v=>fmt(v), font:{size:11}}, grid:{color:'rgba(128,128,128,0.08)'}}
+      }
+    }
+  });
+
+  if(seasonChart) seasonChart.destroy();
+  const sColors = seasonIdx.map(v=>v>=1.2?'#185FA5':v>=1.0?'#378ADD':v>=0.9?'#85B7EB':'#B5D4F4');
+  seasonChart = new Chart(document.getElementById('seasonChart'), {
+    type:'bar',
+    data:{labels:monthNames, datasets:[{label:'Seasonal index', data:seasonIdx, backgroundColor:sColors, borderRadius:3}]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, annotation:{annotations:{line1:{type:'line',yMin:1,yMax:1,borderColor:'#E24B4A',borderWidth:1,borderDash:[4,3]}}}},
+      scales:{
+        x:{ticks:{font:{size:11}}, grid:{display:false}},
+        y:{ticks:{font:{size:11},callback:v=>v.toFixed(1)+'x'}, grid:{color:'rgba(128,128,128,0.08)'},min:0.5,max:1.8}
+      }
+    }
+  });
+
+  if(catChart) catChart.destroy();
+  const catLabels = ['Electronics','Apparel','Home & Garden','Food & Bev'];
+  const catData = [38.5,24.3,21.7,15.5];
+  const catColors = ['#185FA5','#3B6D11','#BA7517','#993556'];
+  catChart = new Chart(document.getElementById('catChart'), {
+    type:'doughnut',
+    data:{labels:catLabels, datasets:[{data:catData, backgroundColor:catColors, borderWidth:2, borderColor:'transparent', hoverOffset:4}]},
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.label+': '+ctx.raw+'%'}}}
+    }
+  });
+
+  if(errorChart) errorChart.destroy();
+  const errColors = errs.map(e=>e>=0?'#3B6D11':'#A32D2D');
+  errorChart = new Chart(document.getElementById('errorChart'), {
+    type:'bar',
+    data:{labels:errLabels, datasets:[{label:'Residual error', data:errs, backgroundColor:errColors, borderRadius:3}]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>'Residual: '+fmt(Math.abs(ctx.raw))+(ctx.raw>=0?' (over)':' (under)')}}},
+      scales:{
+        x:{ticks:{font:{size:11}}, grid:{display:false}},
+        y:{ticks:{callback:v=>fmt(v), font:{size:11}}, grid:{color:'rgba(128,128,128,0.08)'}}
+      }
+    }
+  });
+}
+
+buildPills();
+render();
+</script>
